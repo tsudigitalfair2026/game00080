@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>ぺんぎんもぐらたたき</title>
+<style>
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+  -webkit-tap-highlight-color:transparent;
+}
+html,body{
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  touch-action:none;
+  font-family:sans-serif;
+  background:linear-gradient(#8ed6ff,#dff7ff);
+}
+.screen{
+  display:none;
+  width:100%;
+  height:100vh;
+  padding:16px;
+}
+.active{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+h1{
+  font-size:2rem;
+  margin-bottom:16px;
+  text-align:center;
+}
+p{
+  text-align:center;
+  line-height:1.6;
+}
+button{
+  margin-top:20px;
+  min-width:180px;
+  min-height:60px;
+  border:none;
+  border-radius:16px;
+  background:#0078ff;
+  color:#fff;
+  font-size:1.2rem;
+  font-weight:bold;
+  cursor:pointer;
+}
+button:active{
+  transform:scale(0.96);
+}
+#gameScreen{
+  justify-content:flex-start;
+}
+.topbar{
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  font-size:1.2rem;
+  font-weight:bold;
+  margin-bottom:10px;
+}
+#message{
+  height:30px;
+  text-align:center;
+  font-weight:bold;
+  color:#d40000;
+  margin-bottom:6px;
+}
+#gameArea{
+  flex:1;
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(3,1fr);
+  gap:10px;
+}
+.hole{
+  background:#6b4f2a;
+  border-radius:50%;
+  position:relative;
+  overflow:hidden;
+  border:4px solid #4a3418;
+}
+.penguin{
+  position:absolute;
+  left:50%;
+  bottom:-100%;
+  transform:translateX(-50%);
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:min(12vw,70px);
+  transition:bottom .18s;
+  user-select:none;
+}
+.penguin.show{
+  bottom:0;
+}
+.penguin.boss{
+  font-size:min(20vw,110px);
+  filter:drop-shadow(0 0 8px gold);
+}
+.penguin.gold{
+  filter:drop-shadow(0 0 10px gold);
+}
+.rank{
+  font-size:2rem;
+  color:#ff6a00;
+  font-weight:bold;
+  margin-top:10px;
+}
+#finalScore{
+  font-size:1.5rem;
+  margin-top:10px;
+}
+</style>
+</head>
+<body>
+
+<div id="startScreen" class="screen active">
+  <h1>🐧 ぺんぎんもぐらたたき</h1>
+  <p>
+    ぺんぎんをタップして得点ゲット！<br>
+    巨大ぺんぎんは50点！<br>
+    金色ぺんぎんは得点3倍！
+  </p>
+  <button id="startBtn">ゲームスタート</button>
+</div>
+
+<div id="gameScreen" class="screen">
+  <div class="topbar">
+    <div>スコア: <span id="score">0</span></div>
+    <div>残り: <span id="time">60</span>秒</div>
+  </div>
+
+  <div id="message"></div>
+
+  <div id="gameArea"></div>
+</div>
+
+<div id="resultScreen" class="screen">
+  <h1>結果発表</h1>
+  <div id="finalScore">スコア: 0</div>
+  <div id="rank" class="rank">C</div>
+  <button id="restartBtn">もう一度遊ぶ</button>
+</div>
+
+<script>
+const startScreen=document.getElementById("startScreen");
+const gameScreen=document.getElementById("gameScreen");
+const resultScreen=document.getElementById("resultScreen");
+
+const startBtn=document.getElementById("startBtn");
+const restartBtn=document.getElementById("restartBtn");
+
+const scoreEl=document.getElementById("score");
+const timeEl=document.getElementById("time");
+const finalScoreEl=document.getElementById("finalScore");
+const rankEl=document.getElementById("rank");
+const gameArea=document.getElementById("gameArea");
+const messageEl=document.getElementById("message");
+
+let score=0;
+let timeLeft=60;
+let playing=false;
+let gameTimer=null;
+let penguinTimer=null;
+let currentPenguin=null;
+
+for(let i=0;i<9;i++){
+  const hole=document.createElement("div");
+  hole.className="hole";
+
+  const penguin=document.createElement("div");
+  penguin.className="penguin";
+  penguin.textContent="🐧";
+
+  penguin.addEventListener("pointerdown",(e)=>{
+    e.preventDefault();
+
+    if(!playing) return;
+    if(!penguin.classList.contains("show")) return;
+
+    let addScore=10;
+
+    if(penguin.classList.contains("boss")){
+      addScore=50;
+      messageEl.textContent="🌟巨大ぺんぎん！+50点！";
+    }
+
+    if(penguin.classList.contains("gold")){
+      addScore*=3;
+      messageEl.textContent="✨金色ぺんぎん！3倍ボーナス！";
+    }
+
+    score+=addScore;
+    scoreEl.textContent=score;
+
+    penguin.classList.remove("show","boss","gold");
+
+    if(currentPenguin===penguin){
+      currentPenguin=null;
+    }
+  });
+
+  hole.appendChild(penguin);
+  gameArea.appendChild(hole);
+}
+
+const penguins=[...document.querySelectorAll(".penguin")];
+
+function showScreen(screen){
+  startScreen.classList.remove("active");
+  gameScreen.classList.remove("active");
+  resultScreen.classList.remove("active");
+  screen.classList.add("active");
+}
+
+function randomPenguin(){
+  if(!playing) return;
+
+  if(currentPenguin){
+    currentPenguin.classList.remove("show","boss","gold");
+    currentPenguin.textContent="🐧";
+  }
+
+  const p=penguins[Math.floor(Math.random()*penguins.length)];
+
+  currentPenguin=p;
+
+  const isBoss=Math.random()<0.12;
+  const isGold=Math.random()<0.10;
+
+  p.classList.remove("boss","gold");
+
+  if(isBoss){
+    p.classList.add("boss");
+    p.textContent="🐧";
+    messageEl.textContent="⚡巨大ぺんぎん出現！";
+  }else if(isGold){
+    p.classList.add("gold");
+    p.textContent="🐤";
+    messageEl.textContent="✨金色ぺんぎん出現！";
+  }else{
+    p.textContent="🐧";
+  }
+
+  p.classList.add("show");
+
+  const visibleTime=isBoss ? 1400 : 900;
+
+  setTimeout(()=>{
+    p.classList.remove("show","boss","gold");
+    p.textContent="🐧";
+
+    if(currentPenguin===p){
+      currentPenguin=null;
+    }
+  },visibleTime);
+}
+
+function startGame(){
+  clearInterval(gameTimer);
+  clearInterval(penguinTimer);
+
+  score=0;
+  timeLeft=60;
+  playing=true;
+
+  scoreEl.textContent="0";
+  timeEl.textContent="60";
+  messageEl.textContent="";
+
+  penguins.forEach(p=>{
+    p.classList.remove("show","boss","gold");
+    p.textContent="🐧";
+  });
+
+  showScreen(gameScreen);
+
+  randomPenguin();
+
+  penguinTimer=setInterval(()=>{
+    randomPenguin();
+  },900);
+
+  gameTimer=setInterval(()=>{
+    timeLeft--;
+    timeEl.textContent=timeLeft;
+
+    if(timeLeft<=0){
+      endGame();
+    }
+  },1000);
+}
+
+function getRank(score){
+  if(score>=900) return "S";
+  if(score>=650) return "A";
+  if(score>=400) return "B";
+  return "C";
+}
+
+function endGame(){
+  playing=false;
+
+  clearInterval(gameTimer);
+  clearInterval(penguinTimer);
+
+  penguins.forEach(p=>{
+    p.classList.remove("show","boss","gold");
+  });
+
+  finalScoreEl.textContent="スコア: "+score;
+  rankEl.textContent="ランク "+getRank(score);
+
+  showScreen(resultScreen);
+}
+
+startBtn.addEventListener("click",startGame);
+restartBtn.addEventListener("click",startGame);
+
+document.addEventListener("gesturestart",e=>e.preventDefault());
+document.addEventListener("dblclick",e=>e.preventDefault());
+</script>
+
+</body>
+</html>
